@@ -534,7 +534,7 @@ int main (int argc, char *argv[])
    int run_wrapper_tests, correct1, correct2;
    int print_level, access_level, max_nA, nA_max, max_levels, skip, min_coarse;
    int nrelax, nrelax0, cfactor, cfactor0, max_iter, fmg, res, storage, tnorm;
-   int fullrnorm, use_seq_soln;
+   int fullrnorm, use_seq_soln, warm_restart;
 
    MPI_Init(&argc, &argv);
    MPI_Comm_rank( comm, &myid );
@@ -580,6 +580,7 @@ int main (int argc, char *argv[])
    run_wrapper_tests   = 0;               /* Run no simulation, only run wrapper tests */
    fullrnorm           = 0;               /* Do not compute full residual from user routine each iteration */
    use_seq_soln        = 0;               /* Use the solution from sequential time stepping as the initial guess */
+   warm_restart        = 0;               /* Whether to test the warm_restart utility */
 
    /* Other parameters specific to parallel in time */
    app->use_rand       = 1;               /* If 1, use a random initial guess, else use a zero initial guess */
@@ -622,6 +623,10 @@ int main (int argc, char *argv[])
       else if( strcmp(argv[arg_index], "-use_seq_soln") == 0 ){
           arg_index++;
           use_seq_soln = atoi(argv[arg_index++]);
+      }
+      else if( strcmp(argv[arg_index], "-warm_restart") == 0 ){
+          arg_index++;
+          warm_restart = 1; 
       }
       else if( strcmp(argv[arg_index], "-output_files") == 0 ){
          arg_index++;
@@ -761,6 +766,9 @@ int main (int argc, char *argv[])
       printf("                                       time step for t>0.  if zero, then use a zero initial guess.\n");
       printf("  -fullrnorm                         : use user residual routine to compute full residual each iteration\n");
       printf("                                       on all grid points for stopping criterion.\n");
+      printf("  -warm_restart                      : sanity check for the warm restart option, if turned on this runs\n");
+      printf("                                       max_iter iterations individually, using warm_restart.  Make sure to\n");
+      printf("                                       turn skip off if trying this option\n"); 
       printf("                                     \n");
       printf("                                     \n");
       printf(" Output related parameters\n");
@@ -927,9 +935,22 @@ int main (int argc, char *argv[])
          printf("  --------------------- \n\n");
       }
       
-      /* This call "Drives" or runs the simulation -- woo hoo! */
-      braid_Drive(core);
-      
+      /* Just test the warm restart option, make sure skip is 0!! */
+      if(warm_restart)
+      {
+         braid_SetMaxIter(core, 1);
+         for(i = 0; i < max_iter; i++)
+         {
+            braid_Drive(core);
+            braid_SetWarmRestart(core, 1);
+         }
+      }
+      else
+      {
+         /* This call "Drives" or runs the simulation -- woo hoo! */
+         braid_Drive(core);
+      }
+
       /* Compute run time */
       myendtime = MPI_Wtime();
       mytime    = myendtime - mystarttime;

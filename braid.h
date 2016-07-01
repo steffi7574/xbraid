@@ -583,6 +583,15 @@ braid_Int
 braid_SetDefaultPrintFile(braid_Core     core       /**< braid_Core (_braid_Core) struct*/
                           );
 
+/** 
+ * Set warm restart option for XBraid.  This boolean indicates whether this is
+ * a warm restart of an existing braid_Core
+ **/
+braid_Int
+braid_SetWarmRestart(braid_Core  core,          /**< braid_Core (_braid_Core) struct*/
+                     braid_Int   warm_restart   /**< boolean, indicating warm restart */
+                     );
+
 /**
  * Set access level for XBraid.  This controls how often the user's
  * access routine is called.

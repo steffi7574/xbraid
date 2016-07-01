@@ -380,6 +380,7 @@ braid_Drive(braid_Core  core)
    braid_Int            ntime           = _braid_CoreElt(core, ntime);
    braid_Int            skip            = _braid_CoreElt(core, skip);
    braid_Int            max_levels      = _braid_CoreElt(core, max_levels);
+   braid_Int            warm_restart    = _braid_CoreElt(core, warm_restart);
    braid_Int            print_level     = _braid_CoreElt(core, print_level);
    braid_PtFcnResidual  fullres         = _braid_CoreElt(core, full_rnorm_res);
 
@@ -403,23 +404,25 @@ braid_Drive(braid_Core  core)
    /* Start timer */
    localtime = MPI_Wtime();
 
-   /* Create fine grid */
-   _braid_GetDistribution(core, &ilower, &iupper);
-   _braid_GridInit(core, 0, ilower, iupper, &grid);
-
-   /* Set t values */
-   ta = _braid_GridElt(grid, ta);
-   for (i = ilower; i <= iupper; i++)
+   if( !warm_restart )
    {
-      ta[i-ilower] = tstart + (((braid_Real)i)/ntime)*(tstop-tstart);
+      /* Create fine grid */
+      _braid_GetDistribution(core, &ilower, &iupper);
+      _braid_GridInit(core, 0, ilower, iupper, &grid);
+
+      /* Set t values */
+      ta = _braid_GridElt(grid, ta);
+      for (i = ilower; i <= iupper; i++)
+      {
+         ta[i-ilower] = tstart + (((braid_Real)i)/ntime)*(tstop-tstart);
+      }
+
+      /* Create a grid hierarchy */
+      _braid_InitHierarchy(core, grid, 0);
+
+      /* Set initial values */
+      _braid_InitGuess(core, 0);
    }
-
-   /* Create a grid hierarchy */
-   _braid_InitHierarchy(core, grid, 0);
-   nlevels = _braid_CoreElt(core, nlevels);
-
-   /* Set initial values */
-   _braid_InitGuess(core, 0);
 
    /* Initialize cycle state */
    _braid_DriveInitCycle(core, &cycle);
@@ -432,6 +435,7 @@ braid_Drive(braid_Core  core)
    }
 
    level = 0;
+   nlevels = _braid_CoreElt(core, nlevels);
    if (skip)
    {
       /* Skip work on first down cycle */
@@ -590,6 +594,7 @@ braid_Init(MPI_Comm               comm_world,
    braid_Int              access_level    = 1;              /* Default access level */
    braid_Int              tnorm           = 2;              /* Default temporal norm */
    braid_Real             tol             = 1.0e-09;        /* Default absolute tolerance */
+   braid_Int              warm_restart    = 0;              /* Default is no warm restart */
    braid_Int              rtol            = 1;              /* Use relative tolerance */
    braid_Int              skip            = 1;              /* Default skip value, skips all work on first down-cycle */
    braid_Int              max_refinements = 200;            /* Maximum number of F-refinements */
@@ -633,6 +638,7 @@ braid_Init(MPI_Comm               comm_world,
    _braid_CoreElt(core, seq_soln)        = seq_soln;
    _braid_CoreElt(core, tol)             = tol;
    _braid_CoreElt(core, rtol)            = rtol;
+   _braid_CoreElt(core, warm_restart)    = warm_restart;
 
    _braid_CoreElt(core, nrels)           = NULL; /* Set with SetMaxLevels() below */
    _braid_CoreElt(core, nrdefault)       = nrdefault;
@@ -754,6 +760,7 @@ braid_PrintStats(braid_Core  core)
    braid_Int     nfmg          = _braid_CoreElt(core, nfmg); 
    braid_Int     nfmg_Vcyc     = _braid_CoreElt(core, nfmg_Vcyc); 
    braid_Int     access_level  = _braid_CoreElt(core, access_level); 
+   braid_Int     warm_restart  = _braid_CoreElt(core, warm_restart); 
    braid_Int     print_level   = _braid_CoreElt(core, print_level); 
    braid_Int     skip          = _braid_CoreElt(core, skip); 
    braid_Real    globaltime    = _braid_CoreElt(core, globaltime);
@@ -816,6 +823,10 @@ braid_PrintStats(braid_Core  core)
       _braid_printf("  number of levels      = %d\n", nlevels);
       _braid_printf("  skip down cycle       = %d\n", skip);
       _braid_printf("  number of refinements = %d\n", nrefine);
+      if(warm_restart)
+      {
+         _braid_printf("  Warm restart          = 1\n"); 
+      }
       _braid_printf("\n");
       _braid_printf("  level   time-pts   cfactor   nrelax\n");
       for (level = 0; level < nlevels-1; level++)
@@ -944,6 +955,18 @@ braid_SetAccessLevel(braid_Core  core,
                      braid_Int   access_level)
 {
    _braid_CoreElt(core, access_level) = access_level;
+
+   return _braid_error_flag;
+}
+
+/*--------------------------------------------------------------------------
+ *--------------------------------------------------------------------------*/
+
+braid_Int
+braid_SetWarmRestart(braid_Core  core,
+                     braid_Int   warm_restart)
+{
+   _braid_CoreElt(core, warm_restart) = warm_restart;
 
    return _braid_error_flag;
 }
