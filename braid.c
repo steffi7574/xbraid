@@ -653,6 +653,7 @@ braid_Init(MPI_Comm               comm_world,
    _braid_CoreElt(core, sclone)          = NULL;
    _braid_CoreElt(core, free)            = free;
    _braid_CoreElt(core, sfree)           = NULL;
+   _braid_CoreElt(core, sprop)           = NULL;
    _braid_CoreElt(core, sum)             = sum;
    _braid_CoreElt(core, spatialnorm)     = spatialnorm;
    _braid_CoreElt(core, access)          = access;
@@ -1280,11 +1281,13 @@ braid_Int
 braid_SetShell(braid_Core          core,
                braid_PtFcnSInit    sinit,
                braid_PtFcnSClone   sclone,
-               braid_PtFcnSFree    sfree)
+               braid_PtFcnSFree    sfree,
+               braid_PtFcnSProp    sprop)
 {
    _braid_CoreElt(core, sinit) = sinit;
    _braid_CoreElt(core, sclone) = sclone;
    _braid_CoreElt(core, sfree) = sfree;
+   _braid_CoreElt(core, sprop) = sprop;
    _braid_CoreElt(core, useshell) = 1;
 
    return _braid_error_flag;

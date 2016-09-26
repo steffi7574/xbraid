@@ -330,6 +330,16 @@ typedef braid_Int
                     );
 
 /**
+ * Propagate the metadata from a shell x to another shell y (optional)
+ **/
+typedef braid_Int
+(*braid_PtFcnSProp)(braid_App    app,
+                    braid_Vector x,
+                    braid_Vector y
+                    );
+
+
+/**
  * Set time values for temporal grid on level 0 (time slice per processor)
  **/
 typedef braid_Int
@@ -690,7 +700,8 @@ braid_Int
 braid_SetShell(braid_Core          core, 
                braid_PtFcnSInit    sinit,
                braid_PtFcnSClone   sclone,
-               braid_PtFcnSFree    sfree
+               braid_PtFcnSFree    sfree,
+               braid_PtFcnSProp    sprop
                );
 
 /**
