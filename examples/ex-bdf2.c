@@ -417,7 +417,7 @@ int main (int argc, char *argv[])
    if (fmg)
       braid_SetFMG(core);
 
-   braid_SetShell(core, my_InitShell, my_CloneShell, my_FreeShell);
+   braid_SetShell(core, my_InitShell, my_CloneShell, my_FreeShell, NULL);
    braid_SetStorage(core, -1);
 
    braid_Drive(core);

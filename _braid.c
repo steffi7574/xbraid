@@ -1850,7 +1850,7 @@ _braid_FInterp(braid_Core  core,
          _braid_Refine(core, f_level, f_index, fi, e, &f_e);
          _braid_UGetVectorRef(core, f_level, f_index, &f_u);
          _braid_CoreFcn(core, sum)(app, 1.0, f_e, 1.0, f_u);
-         if (_braid_CoreElt(core, useshell))
+         if (_braid_CoreElt(core, useshell) && _braid_CoreElt(core, sprop)!=NULL)
             _braid_CoreFcn(core, sprop)(app, u, f_u);
          _braid_USetVectorRef(core, f_level, f_index, f_u);
          _braid_CoreFcn(core, free)(app, f_e);
@@ -1877,7 +1877,7 @@ _braid_FInterp(braid_Core  core,
          _braid_Refine(core, f_level, f_index, ci, e, &f_e);
          _braid_UGetVectorRef(core, f_level, f_index, &f_u);
          _braid_CoreFcn(core, sum)(app, 1.0, f_e, 1.0, f_u);
-         if (_braid_CoreElt(core, useshell))
+         if (_braid_CoreElt(core, useshell) && _braid_CoreElt(core, sprop)!=NULL)
             _braid_CoreFcn(core, sprop)(app, u, f_u);
          _braid_USetVectorRef(core, f_level, f_index, f_u);
          _braid_CoreFcn(core, free)(app, f_e);
