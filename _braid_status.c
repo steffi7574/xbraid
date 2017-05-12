@@ -313,6 +313,15 @@ braid_StatusSetRFactor(braid_Status status,
 }
 
 braid_Int
+braid_StatusSetRRatio(braid_Status status,
+                      braid_Real   rratio
+                      )
+{
+   _braid_StatusElt(status, rratio) = rratio;
+   return _braid_error_flag;
+}
+
+braid_Int
 braid_StatusSetRSpace(braid_Status status,
                       braid_Real   r_space
                       )
@@ -445,6 +454,7 @@ _braid_StepStatusInit(braid_Real       tstart,
    _braid_StatusElt(status, nrefine)   = nrefine;
    _braid_StatusElt(status, gupper)    = gupper;
    _braid_StatusElt(status, rfactor)   = 1;
+   _braid_StatusElt(status, rratio)    = -1;
    _braid_StatusElt(status, r_space)   = 0;
 
    return _braid_error_flag;
@@ -464,6 +474,7 @@ ACCESSOR_FUNCTION_GET1(Step, OldFineTolx,   Real)
 ACCESSOR_FUNCTION_SET1(Step, OldFineTolx,   Real)
 ACCESSOR_FUNCTION_SET1(Step, TightFineTolx, Real)
 ACCESSOR_FUNCTION_SET1(Step, RFactor,       Real)
+ACCESSOR_FUNCTION_SET1(Step, RRatio,        Real)
 ACCESSOR_FUNCTION_SET1(Step, RSpace,        Real)
 
 /*--------------------------------------------------------------------------

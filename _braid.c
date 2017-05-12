@@ -892,6 +892,7 @@ _braid_Step(braid_Core     core,
    braid_Real       tol      = _braid_CoreElt(core, tol);
    braid_Int        iter     = _braid_CoreElt(core, niter);
    braid_Int       *rfactors = _braid_CoreElt(core, rfactors);
+   braid_Real      *rratios  = _braid_CoreElt(core, rratios);
    _braid_Grid    **grids    = _braid_CoreElt(core, grids);
    braid_StepStatus status   = (braid_StepStatus)core;
    braid_Int        nrefine  = _braid_CoreElt(core, nrefine);
@@ -915,6 +916,7 @@ _braid_Step(braid_Core     core,
    {
       _braid_CoreFcn(core, step)(app, ustop, NULL, u, status);
       rfactors[ii] = _braid_StatusElt(status, rfactor);
+      rratios[ii]  = _braid_StatusElt(status, rratio);
       if ( !_braid_CoreElt(core, r_space) && _braid_StatusElt(status, r_space) )
             _braid_CoreElt(core, r_space) = 1;
    }     
@@ -952,6 +954,7 @@ _braid_Residual(braid_Core     core,
    braid_Real       tol      = _braid_CoreElt(core, tol);
    braid_Int        iter     = _braid_CoreElt(core, niter);
    braid_Int       *rfactors = _braid_CoreElt(core, rfactors);
+   braid_Real      *rratios  = _braid_CoreElt(core, rratios);
    _braid_Grid    **grids    = _braid_CoreElt(core, grids);
    braid_StepStatus status   = (braid_StepStatus)core;
    braid_Int        nrefine  = _braid_CoreElt(core, nrefine);
@@ -974,6 +977,7 @@ _braid_Residual(braid_Core     core,
       {
          /*TODO Remove this line after modifing the _braid_StatusSetRFactor to set the rfactor in the array directly */
          rfactors[ii] = _braid_StatusElt(status, rfactor);
+         rratios[ii]  = _braid_StatusElt(status, rratio);
          /* TODO : Remove these two lines, which are now useless since core==status */
          if ( !_braid_CoreElt(core, r_space) && _braid_StatusElt(status, r_space) )
                _braid_CoreElt(core, r_space) = 1;
@@ -2060,6 +2064,7 @@ _braid_FRefine(braid_Core   core,
    braid_Int          iter            = _braid_CoreElt(core, niter);
    braid_Int          refine          = _braid_CoreElt(core, refine);
    braid_Int         *rfactors        = _braid_CoreElt(core, rfactors);
+   braid_Real        *rratios         = _braid_CoreElt(core, rratios);
    braid_Int          nrefine         = _braid_CoreElt(core, nrefine);
    braid_Int          max_refinements = _braid_CoreElt(core, max_refinements);
    braid_Int          tpoints_cutoff  = _braid_CoreElt(core, tpoints_cutoff);
@@ -2092,6 +2097,7 @@ _braid_FRefine(braid_Core   core,
 
    _braid_Grid   *f_grid;
    braid_Int      cfactor, rfactor, m, interval, flo, fhi, fi, ci, f_hi, f_ci;
+   braid_Real     rratio;
 
 #if DEBUG
    braid_Int  myproc;
@@ -2191,23 +2197,40 @@ _braid_FRefine(braid_Core   core,
    {
       ii = i-ilower;
       rfactor = rfactors[ii+1];
-
-      for (j = 1; j <= rfactor; j++)
+      if (rfactor == 2)
       {
-         if (j < rfactor)
+         rratio = rratios[ii+1];
+         if (rratio <= 0 || rratio>=1)
          {
-            r_ca[r_ii] = -1;
-            /* This works because we have ta[-1] */
-            r_ta[r_ii] = ta[ii] + (((braid_Real)j)/rfactor)*(ta[ii+1]-ta[ii]);
+            rratio=0.5;
          }
-         else
-         {
-            r_ca[r_ii] = i+1;
-            r_ta[r_ii] = ta[ii+1];
-            r_fa[ii+1] = r_ilower + r_ii;
-         }
-
+         r_ca[r_ii] = -1;
+         r_ta[r_ii] = ta[ii] + rratio*(ta[ii+1]-ta[ii]);
          r_ii++;
+         r_ca[r_ii] = i+1;
+         r_ta[r_ii] = ta[ii+1];
+         r_fa[ii+1] = r_ilower + r_ii;
+         r_ii++;
+      }
+      else
+      {
+         for (j = 1; j <= rfactor; j++)
+         {
+            if (j < rfactor)
+            {
+               r_ca[r_ii] = -1;
+               /* This works because we have ta[-1] */
+               r_ta[r_ii] = ta[ii] + (((braid_Real)j)/rfactor)*(ta[ii+1]-ta[ii]);
+            }
+            else
+            {
+               r_ca[r_ii] = i+1;
+               r_ta[r_ii] = ta[ii+1];
+               r_fa[ii+1] = r_ilower + r_ii;
+            }
+
+            r_ii++;
+         }
       }
    }
 
@@ -2655,6 +2678,7 @@ _braid_FRefine(braid_Core   core,
    {
       braid_Int  level, nlevels = _braid_CoreElt(core, nlevels);
       _braid_TFree(_braid_CoreElt(core, rfactors));
+      _braid_TFree(_braid_CoreElt(core, rratios));
       _braid_TFree(_braid_CoreElt(core, tnorm_a));
 
       for (level = 0; level < nlevels; level++)
@@ -2848,6 +2872,7 @@ _braid_InitHierarchy(braid_Core    core,
    braid_Int      nrdefault  = _braid_CoreElt(core, nrdefault);
    braid_Int      gupper     = _braid_CoreElt(core, gupper);
    braid_Int     *rfactors   = _braid_CoreElt(core, rfactors);
+   braid_Real    *rratios    = _braid_CoreElt(core, rratios);
    braid_Int      nlevels    = _braid_CoreElt(core, nlevels);
    _braid_Grid  **grids      = _braid_CoreElt(core, grids);
 
@@ -2896,14 +2921,18 @@ _braid_InitHierarchy(braid_Core    core,
    ilower = _braid_GridElt(grids[0], ilower);
    iupper = _braid_GridElt(grids[0], iupper);
    rfactors = _braid_CTAlloc(braid_Int, iupper-ilower+2); /* Ensures non-NULL */
+   rratios  = _braid_CTAlloc(braid_Real, iupper-ilower+2); /* Ensures non-NULL */
    for(i = 0; i < iupper-ilower+2; i++)
    {
       /* We need to ensure an rfactor of 1 for global index 0, and for
        * the case of a user-defined residual function and F-relaxation,
-       * a default rfactor value at F-points */
-      rfactors[i] = 1; 
+       * a default rfactor value at F-points. Any ratio not strictly
+       * between 0 and 1 defaults to 0.5. */
+      rfactors[i] = 1;
+      rratios[i] = -1;
    }
    _braid_CoreElt(core, rfactors) = rfactors;
+   _braid_CoreElt(core, rratios)  = rratios;
 
    /* Set up nrels array */
    for (level = 0; level < max_levels; level++)

@@ -165,6 +165,7 @@ typedef struct _braid_Core_struct
 
    braid_Int              refine;           /**< refine in time (refine = 1) */
    braid_Int             *rfactors;         /**< refinement factors for finest grid (if any) */
+   braid_Real            *rratios;          /**< refinement ratios for finest grid (if any). Used only if the associated rfactor is 2. */
    braid_Int              r_space;          /**< spatial refinment flag */
    braid_Int              rstopped;         /**< refinement stopped at iteration rstopped */
    braid_Int              nrefine;          /**< number of refinements done */
@@ -199,6 +200,7 @@ typedef struct _braid_Core_struct
    braid_Real    old_fine_tolx;    /**< Allows for storing the previously used fine tolerance from GetSpatialAccuracy */
    braid_Int     tight_fine_tolx;  /**< Boolean, indicating whether the tightest fine tolx has been used, condition for halting */
    braid_Int     rfactor;          /**< if set by user, allows for subdivision of this interval for better time accuracy */
+   braid_Real    rratio;          /**< if set by user, allows for non uniform subdivision of this interval for better time accuracy (only if rfactor==2) */
    /** BufferStatus properties */
    braid_Int    messagetype;       /**< message type, 0: for Step(), 1: for load balancing */
    braid_Int    size_buffer;       /**< if set by user, send buffer will be "size" bytes in length */

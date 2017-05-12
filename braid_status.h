@@ -374,6 +374,16 @@ braid_StatusSetRFactor(braid_Status status,                /**< structure contai
                        );
 
 /**
+ * Set the rratio. Used only if rfactor==2. If set, the interval
+ * is subdivised in 2 non uniformly. The new point is located
+ * at t=t0+rratio*(t1-t0).
+ **/
+braid_Int
+braid_StatusSetRRatio(braid_Status status,                /**< structure containing current simulation info */
+                      braid_Real   rratio                 /**< input, user-determined desired rfactor */
+                      );
+
+/**
  * Set the r_space flag. When set = 1, spatial coarsening will be called,
  * for all local time points, following the  completion of the current
  * iteration, provided rfactors are not set at any global time point. This
@@ -471,6 +481,7 @@ ACCESSOR_HEADER_GET1(Step, OldFineTolx,   Real)
 ACCESSOR_HEADER_SET1(Step, OldFineTolx,   Real)
 ACCESSOR_HEADER_SET1(Step, TightFineTolx, Real)
 ACCESSOR_HEADER_SET1(Step, RFactor,       Real)
+ACCESSOR_HEADER_SET1(Step, RRatio ,       Real)
 ACCESSOR_HEADER_SET1(Step, RSpace,        Real)
 
 /*--------------------------------------------------------------------------
