@@ -47,12 +47,12 @@ MFEM_LIB_FILE = mfem_is_not_built
 BRAID_FLAGS = -I$(BRAID_DIR)
 BRAID_LIB_FILE = $(BRAID_DIR)/libbraid.a
 
-C_NOHYPRE = ex-01 ex-01-adjoint ex-01-optimization ex-01-refinement ex-01-expanded ex-01-expanded-bdf2 ex-02 ex-04 ex-04-serial ex-06
+C_NOHYPRE = ex-01 ex-01-adjoint ex-01-optimization ex-01-refinement ex-01-expanded ex-01-expanded-bdf2 ex-02 ex-04 ex-04-mgritopt ex-04-serial ex-06
 CPP_NOHYPRE = ex-01-pp 
 F_NOHYPRE = ex-01-expanded-f
 C_EXAMPLES = ex-03 ex-03-serial
 # Note: .cpp examples will be linked with mfem
-#CXX_EXAMPLES = ex-04
+#CXX_EXAMPLES = ex-04 ex-04-mgritopt
 
 .PHONY: all clean cleanout
 
@@ -128,6 +128,12 @@ ex-03-serial: ex-03-serial.c $(BRAID_LIB_FILE) $(HYPRE_LIB_FILE) ex-03-lib.c
 ex-04: ex-04.c $(BRAID_LIB_FILE) ex-04-lib.c
 	@echo "Building" $@ "..."
 	$(MPICC) $(CFLAGS) $(BRAID_FLAGS) $(@).c -o $@ $(BRAID_LIB_FILE) $(LFLAGS)
+	#
+# Rule for building ex-04-mgritopt
+ex-04-mgritopt: ex-04-mgritopt.c $(BRAID_LIB_FILE) ex-04-lib.c
+	@echo "Building" $@ "..."
+	$(MPICC) $(CFLAGS) $(BRAID_FLAGS) $(@).c -o $@ $(BRAID_LIB_FILE) $(LFLAGS)
+
 
 # Rule for building ex-04-serial
 ex-04-serial: ex-04-serial.c $(BRAID_LIB_FILE) ex-04-lib.c

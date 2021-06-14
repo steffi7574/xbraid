@@ -89,6 +89,7 @@ _braid_FASResidual(braid_Core        core,
    }
    else
    {
+      printf("HIHIHIHIHIHIHI\n\n");
       ii = index-ilower;
       if(fa[ii] == NULL)
       {
