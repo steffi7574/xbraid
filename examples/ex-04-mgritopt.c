@@ -65,6 +65,7 @@ typedef struct _braid_App_struct
    double *gradient;    /* Holds the gradient vector */
    double  gamma;       /* Relaxation parameter for objective function */
    int     ntime;       /* Total number of time-steps */
+   double objective; 
 } my_App;
 
 
@@ -226,7 +227,12 @@ my_Access(braid_App          app,
    //    fflush(file);
    //    fclose(file);
    // }
+
+   double deltaT = 1./app->ntime;
+   braid_AccessStatusGetTIndex(astatus, &index);
+   double objT = evalObjectiveT(u->values, app->design[index], deltaT, app->gamma);
    printf("u->values[0]=%f\n", (u->values)[0]);
+   app->objective += objT;
 
 
    return 0;
@@ -573,9 +579,11 @@ int main (int argc, char *argv[])
    /* Optimization iteration */
    for (iter = 0; iter < maxiter; iter++)
    {
+      app->objective = 0.0;
 
       /* Parallel-in-time simulation and gradient computation */
       braid_Drive(core);
+      printf("Objective %f\n", app->objective);
 
       /* Get objective function value */
       // nreq = -1;
