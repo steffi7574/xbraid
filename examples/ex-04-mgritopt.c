@@ -69,7 +69,7 @@ typedef struct _braid_App_struct
    int     ntime;       /* Total number of time-steps */
    double Tfinal;
    double objective; 
-   int iter;
+   int doadjoint;
    braid_Core core;
 } my_App;
 
@@ -108,12 +108,12 @@ my_Step(braid_App        app,
    design = app->design[index];
 
    /* Take one step forward */
-   if (app->iter==0) printf("Step %f->%f u0=(%f, %f)", tstart, tstop, u->values[0], u->values[1]);
+   // printf("Step %f->%f u0=(%f, %f)", tstart, tstop, u->values[0], u->values[1]);
    take_step(u->values, design, deltaT);
-   if (app->iter==0) printf(", u1=(%f,%f)\n", u->values[0], u->values[1]);
+   // printf(", u1=(%f,%f)\n", u->values[0], u->values[1]);
 
    /* Take a step backwards */
-   if (app->iter>0) {  // wait one iteration, so that the grid has been set for all time steps. 
+   if (app->doadjoint>=0) {   
       // get the state at N-(n+1)
       int FWDid= app->ntime - (index +1);
       braid_BaseVector ubase;
@@ -641,36 +641,41 @@ int main (int argc, char *argv[])
       printf("\nOptimization:         || r ||        || r_adj ||        Objective           || Gradient ||\n");
    }
 
+   // run once, so that the grid for all points is allocated.
+   app->doadjoint = -1;
+   app->objective = 0.0;
+   braid_Drive(core);
+   app->doadjoint = 0;
+   my_ResetGradient(app);
 
    /* Optimization iteration */
    for (iter = 0; iter < maxiter; iter++)
    {
       app->objective = 0.0;
       my_ResetGradient(app);
-      app->iter = iter;
 
-      if (iter > 0) {
-         // get the state at N
-         int FWDid= app->ntime;
-         braid_BaseVector ubaseFWD, ubaseBWD;
-         braid_Vector uFWD=NULL;
-         braid_Vector uBWD=NULL;
-         _braid_UGetVectorRef(app->core, 0, FWDid, &ubaseFWD);      // last step
-         _braid_UGetVectorRef(app->core, 0, 0, &ubaseBWD); // last first step
-         if (ubaseFWD != NULL) {
-            uFWD = ubaseFWD->userVector;
-         }
-         if (ubaseBWD != NULL) {
-            uBWD = ubaseBWD->userVector;
-         }
-         double designi = app->design[FWDid-1];
-         // printf("WELLLLL %d %f \n\n", FWDid-1, designi);
-         // printf("u=%f\n", uFWD->values[0]);
-         // Update adjoint and design
-         double dt_fine = app->Tfinal / app->ntime;
-         app->gradient[FWDid-1] += evalObjectiveT_diff(uBWD->valuesbar, uFWD->values,designi, app->gamma, dt_fine);
-         printf("Adjoint initial: uBWD=(%f,%f)\n", uBWD->valuesbar[0], uBWD->valuesbar[1]);
+      // if (iter > 0) {
+      // get the state at N
+      int FWDid= app->ntime;
+      braid_BaseVector ubaseFWD, ubaseBWD;
+      braid_Vector uFWD=NULL;
+      braid_Vector uBWD=NULL;
+      _braid_UGetVectorRef(app->core, 0, FWDid, &ubaseFWD);      // last step
+      _braid_UGetVectorRef(app->core, 0, 0, &ubaseBWD); // last first step
+      if (ubaseFWD != NULL) {
+         uFWD = ubaseFWD->userVector;
       }
+      if (ubaseBWD != NULL) {
+         uBWD = ubaseBWD->userVector;
+      }
+      double designi = app->design[FWDid-1];
+      // printf("WELLLLL %d %f \n\n", FWDid-1, designi);
+      // printf("u=%f\n", uFWD->values[0]);
+      // Update adjoint and design
+      double dt_fine = app->Tfinal / app->ntime;
+      app->gradient[FWDid-1] += evalObjectiveT_diff(uBWD->valuesbar, uFWD->values,designi, app->gamma, dt_fine);
+      printf("Adjoint initial: uBWD=(%f,%f)\n", uBWD->valuesbar[0], uBWD->valuesbar[1]);
+      // }
 
       /* Parallel-in-time simulation and gradient computation */
       braid_Drive(core);
