@@ -117,8 +117,11 @@ evalObjectiveT_diff(double *w,
    ddu[1] = 2. * deltaT * u[1];
 
    /* Update the adjoint */
-   w[0] = ddu[0];
-   w[1] = ddu[1];
+   // note: This is += here...!
+   w[0] += ddu[0];
+   w[1] += ddu[1];
+
+   free(ddu);
 
    /* derivative with respect to c */
    gradientT = 2.* deltaT * gamma * design;
