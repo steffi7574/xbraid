@@ -48,6 +48,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 
 #include "braid.h"
 #include "_braid.h"
@@ -107,9 +108,9 @@ my_Step(braid_App        app,
    design = app->design[index];
 
    /* Take one step forward */
-   // if (app->iter==0) printf("Step %f->%f u0=(%f, %f)", tstart, tstop, u->values[0], u->values[1]);
+   if (app->iter==0) printf("Step %f->%f u0=(%f, %f)", tstart, tstop, u->values[0], u->values[1]);
    take_step(u->values, design, deltaT);
-   // if (app->iter==0) printf(", u1=(%f,%f)\n", u->values[0], u->values[1]);
+   if (app->iter==0) printf(", u1=(%f,%f)\n", u->values[0], u->values[1]);
 
    /* Take a step backwards */
    if (app->iter>0) {  // wait one iteration, so that the grid has been set for all time steps. 
@@ -124,7 +125,9 @@ my_Step(braid_App        app,
       // Update adjoint and design
       // printf("Step (%f->%f)=(%d->%d) ", tstart, tstop, FWDid+1, FWDid); 
       double dPhidp = take_step_diff(u->valuesbar, deltaT);
-      double dJdp = evalObjectiveT_diff(u->valuesbar, uFWD->values, app->design[FWDid], app->gamma, 1./app->ntime);
+      double dt_fine = app->Tfinal/ app->ntime;
+      assert(dt_fine == deltaT);
+      double dJdp = evalObjectiveT_diff(u->valuesbar, uFWD->values, app->design[FWDid], app->gamma, dt_fine);
       // printf("ubar_out=(%f,%f), dPhi[%d]=%1.8e dJ[%d]=%1.8e \n", u->valuesbar[0], u->valuesbar[1], FWDid, dPhidp, FWDid, dJdp);
       app->gradient[FWDid] = dPhidp + dJdp;
    }
@@ -268,7 +271,7 @@ my_Access(braid_App          app,
    //    fclose(file);
    // }
 
-   double deltaT = 1./app->ntime;
+   double deltaT = app->Tfinal/app->ntime;
    double time;
    braid_AccessStatusGetTIndex(astatus, &index);
    braid_AccessStatusGetT(astatus, &time);
@@ -408,6 +411,8 @@ my_ObjectiveT_diff(braid_App            app,
       /* Partial derivatives of objective */
       app->gradient[index-1] += evalObjectiveT_diff(u_bar->values, u->values, design, gamma, deltaT);
    }
+   printf("SHOULD NEVER BE CALLED");
+   exit(1);
    
    return 0;
 }
@@ -582,6 +587,8 @@ int main (int argc, char *argv[])
          return (0);
       }
    }
+   
+   tstop = 1.0*ntime;
 
    /* Initialize optimization */
    // eval J at t=0 AND t=ntime!
@@ -660,8 +667,9 @@ int main (int argc, char *argv[])
          // printf("WELLLLL %d %f \n\n", FWDid-1, designi);
          // printf("u=%f\n", uFWD->values[0]);
          // Update adjoint and design
-         app->gradient[FWDid-1] += evalObjectiveT_diff(uBWD->valuesbar, uFWD->values,designi, app->gamma, 1./app->ntime);
-         printf("uBWD=(%f,%f)\n", uBWD->valuesbar[0], uBWD->valuesbar[1]);
+         double dt_fine = app->Tfinal / app->ntime;
+         app->gradient[FWDid-1] += evalObjectiveT_diff(uBWD->valuesbar, uFWD->values,designi, app->gamma, dt_fine);
+         printf("Adjoint initial: uBWD=(%f,%f)\n", uBWD->valuesbar[0], uBWD->valuesbar[1]);
       }
 
       /* Parallel-in-time simulation and gradient computation */
