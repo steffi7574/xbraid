@@ -126,7 +126,7 @@ my_Step(braid_App        app,
       // printf("Step (%f->%f)=(%d->%d) ", tstart, tstop, FWDid+1, FWDid); 
       double dPhidp = take_step_diff(u->valuesbar, deltaT);
       double dt_fine = app->Tfinal/ app->ntime;
-      assert(dt_fine == deltaT);
+      // assert(dt_fine == deltaT);
       double dJdp = evalObjectiveT_diff(u->valuesbar, uFWD->values, app->design[FWDid], app->gamma, dt_fine);
       // printf("ubar_out=(%f,%f), dPhi[%d]=%1.8e dJ[%d]=%1.8e \n", u->valuesbar[0], u->valuesbar[1], FWDid, dPhidp, FWDid, dJdp);
       app->gradient[FWDid] = dPhidp + dJdp;
@@ -259,7 +259,7 @@ my_Access(braid_App          app,
    FILE * file;
 
    // /* Print solution to file if simulation is over */
-   // braid_AccessStatusGetDone(astatus, &done);
+   braid_AccessStatusGetDone(astatus, &done);
 
    // if (done)
    // {
@@ -271,17 +271,19 @@ my_Access(braid_App          app,
    //    fclose(file);
    // }
 
-   double deltaT = app->Tfinal/app->ntime;
-   double time;
-   braid_AccessStatusGetTIndex(astatus, &index);
-   braid_AccessStatusGetT(astatus, &time);
-   // if (index < app->ntime) {
-      double objT = evalObjectiveT(u->values, app->design[index], deltaT, app->gamma);
-      // printf("%d, %f, u->values[0]=%f\n", index, time, (u->values)[0]);
-      // printf("%d, %f, u->valuesbar[0]=%f\n", index, time, (u->valuesbar)[0]);
-      // printf("%d, %f, u->values[0]=%f, objT=%f\n", index, time, (u->values)[0], objT);
-      app->objective += objT;
-   // }
+   if (done) {
+      double deltaT = app->Tfinal/app->ntime;
+      double time;
+      braid_AccessStatusGetTIndex(astatus, &index);
+      braid_AccessStatusGetT(astatus, &time);
+      // if (index < app->ntime) {
+         double objT = evalObjectiveT(u->values, app->design[index], deltaT, app->gamma);
+         // printf("%d, %f, u->values[0]=%f\n", index, time, (u->values)[0]);
+         // printf("%d, %f, u->valuesbar[0]=%f\n", index, time, (u->valuesbar)[0]);
+         // printf("%d, %f, u->values[0]=%f, objT=%f\n", index, time, (u->values)[0], objT);
+         app->objective += objT;
+      // }
+   }
 
    return 0;
 }
@@ -488,12 +490,12 @@ int main (int argc, char *argv[])
 
    /* Define some Braid parameters */
    max_levels     = 2;
-   braid_maxiter  = 1;
+   braid_maxiter  = 10;
    cfactor        = 2;
    braid_tol      = 1.0e-6;
    braid_adjtol   = 1.0e-6;
    access_level   = 1;
-   print_level    = 0;
+   print_level    = 1;
    
 
    /* Parse command line */
@@ -596,7 +598,7 @@ int main (int argc, char *argv[])
    gradient = (double*) malloc( (ntime+1)*sizeof(double) );    /* gradient vector */
    for (ts = 0; ts < ntime+1; ts++)
    {
-      design[ts]   = 1.;
+      design[ts]   = 0.1;
       gradient[ts] = 0.;
    }
    /* Inverse of reduced Hessian approximation */
@@ -634,6 +636,7 @@ int main (int argc, char *argv[])
    // braid_SetAbsTolAdjoint(core, braid_adjtol);
    braid_SetSkip(core, 0); // turn off skip of first down cycle.
    braid_SetStorage(core, 0);
+   braid_SetFinalFCRelax(core);
 
    /* Prepare optimization output */
    if (rank == 0)
@@ -752,7 +755,7 @@ int main (int argc, char *argv[])
          // error
          double fd = (obj_1 - obj_2) / (2.*EPS);
          double err = (fd  - grad_org[ts]) / (fd + 1e-16);
-         printf("fd=%1.10e, grad=%1.10e, err=%1.10e\n", fd, grad_org[ts], err);
+         printf("%d: fd=%1.10e, grad=%1.10e, err=%1.10e\n", ts, fd, grad_org[ts], err);
 
    } 
   #endif
