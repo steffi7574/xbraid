@@ -352,97 +352,6 @@ my_BufUnpack(braid_App           app,
    return 0;
 }
 
-/* Evaluate one term of the time-dependent discretized objective function for
- * vector u.  The result over all time values will be summed by Braid. */
-int 
-my_ObjectiveT(braid_App              app,
-              braid_Vector           u,
-              braid_ObjectiveStatus  ostatus,
-              double                *objectiveT_ptr)
-{
-   double objT;
-   double design;
-   int    index;
-   double deltaT = 1./app->ntime;
-   double gamma  = app->gamma;
-
-   /* Get the time index*/
-   braid_ObjectiveStatusGetTIndex(ostatus, &index);
-
-   /* Evaluate the objective function after the first step */
-   if ( index > 0)
-   {
-      /* Get the design from the app */
-      design = app->design[index-1];
-
-      /* Evaluate objective */
-      objT = evalObjectiveT( u->values, design, deltaT, gamma);
-   }
-   else
-   {
-      objT = 0.0;
-   }
-
-   *objectiveT_ptr = objT;
-   
-   return 0;
-}
-
-
-/* Transposed partial derivatives of objectiveT */ 
-int
-my_ObjectiveT_diff(braid_App            app,
-                  braid_Vector          u,
-                  braid_Vector          u_bar,
-                  braid_Real            F_bar,
-                  braid_ObjectiveStatus ostatus)
-{
-   int     index;
-   double  design;
-   double  gamma   = app->gamma;
-   double  deltaT  = 1. / app->ntime;
-   
-   /* Get the design from the app */
-   braid_ObjectiveStatusGetTIndex(ostatus, &index);
-
-   if ( index > 0 )
-   {
-      /* Get the design from the app */
-      design = app->design[index-1];
-
-      /* Partial derivatives of objective */
-      app->gradient[index-1] += evalObjectiveT_diff(u_bar->values, u->values, design, gamma, deltaT);
-   }
-   printf("SHOULD NEVER BE CALLED");
-   exit(1);
-   
-   return 0;
-}
-
-/* Transposed partial derivatives of step times u_bar */
-int
-my_Step_diff(braid_App              app,
-                braid_Vector        ustop,
-                braid_Vector        u,
-                braid_Vector        ustop_bar,
-                braid_Vector        u_bar,
-                braid_StepStatus    status)
-{
-
-   double  tstop, tstart;
-   int     tidx;
-
-   /* Get time and time index  */
-   braid_StepStatusGetTstartTstop(status, &tstart, &tstop);
-   braid_StepStatusGetTIndex(status, &tidx);
-   double deltaT = tstop - tstart;
-
-   /* transposed derivative of take_step times u_bar */
-   app->gradient[tidx] += take_step_diff(u_bar->values, deltaT);
-
-   return 0;
-}
-
 /* Set the gradient to zero */
 int 
 my_ResetGradient(braid_App app)
@@ -693,7 +602,7 @@ int main (int argc, char *argv[])
       // braid_GetRNormAdjoint(core, &rnorm_adj);
 
       /* Compute the norm of the gradient */
-      mygnorm = compute_sqnorm(app->gradient, ntime);
+      mygnorm = compute_sqnorm(app->gradient, ntime+1);
       MPI_Allreduce(&mygnorm, &gnorm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
       gnorm = sqrt(gnorm);
 
@@ -718,12 +627,13 @@ int main (int argc, char *argv[])
    }
 
    // print gradient
-   printf("Gradient=\n");
-   for (ts=0; ts<ntime+1; ts++){
-      printf("%d %1.14e\n", ts, app->gradient[ts]);
-   }
+   // printf("Gradient=\n");
+   // for (ts=0; ts<ntime+1; ts++){
+   //    printf("%d %1.14e\n", ts, app->gradient[ts]);
+   // }
+   printf("||g||= %1.12e\n", gnorm);
    
-#if 1
+#if 0
    //############  FD  ################ 
 
    double obj_org = app->objective;
