@@ -117,7 +117,7 @@ _braid_FRestrict(braid_Core   core,
     * Do an F-relax and then a C-relax.  These relaxations are needed to compute
     * the residual, which is needed for the coarse-grid right-hand-side and for
     * convergence checking on the finest grid.  This loop updates va and fa. */
-   printf("  FRelax and restrice\n");
+   // printf("  FRelax and restrice\n");
    for (interval = ncpoints; interval > -1; interval--)
    {
       _braid_GetInterval(core, level, interval, &flo, &fhi, &ci);
@@ -233,7 +233,7 @@ _braid_FRestrict(braid_Core   core,
         estimate = _braid_CTAlloc(braid_Real, c_iupper-c_ilower + 1 );
    }
 
-   printf("  Loop over c-points and compute fa\n");
+   // printf("  Loop over c-points and compute fa\n");
    /* Start with rightmost point */
    for (c_i = c_iupper; c_i >= c_ilower; c_i--)
    {

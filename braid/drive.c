@@ -505,15 +505,15 @@ _braid_Drive(braid_Core  core,
          /* Down cycle */
 
          /* CF-relaxation */
-         printf("Down-cycle: Level %d, Enter FCRelax\n", level);
+         // printf("Down-cycle: Level %d, Enter FCRelax\n", level);
          _braid_FCRelax(core, level);
-         printf("Done\n");
+         // printf("Done\n");
 
          /* F-relax then restrict (note that FRestrict computes a new rnorm) */
          /* if adjoint: This computes the local objective function at each step on finest grid. */
-         printf("Down-cycle: Level %d, Enter FRestrict\n", level);
+         // printf("Down-cycle: Level %d, Enter FRestrict\n", level);
          _braid_FRestrict(core, level);
-         printf("Done\n");
+         // printf("Done\n");
 
          /* Compute full residual norm if requested */
          if ( (level == 0) &&  (fullres != NULL) )
@@ -543,9 +543,9 @@ _braid_Drive(braid_Core  core,
             }
 
             /* F-relax then interpolate */
-            printf("Up-cycle: Level %d, Enter FInterp\n", level);
+            // printf("Up-cycle: Level %d, Enter FInterp\n", level);
             _braid_FInterp(core, level);
-            printf("Done\n");
+            // printf("Done\n");
 
 
             level--;
@@ -642,7 +642,7 @@ _braid_Drive(braid_Core  core,
                iter++;
                _braid_CoreElt(core, niter) = iter;
             }
-            printf("Next iter.\n");
+            // printf("Next iter.\n");
          }
       }
    }
