@@ -113,7 +113,7 @@ my_Step(braid_App        app,
    // printf(", u1=(%f,%f)\n", u->values[0], u->values[1]);
 
    /* Take a step backwards */
-   if (app->doadjoint>=0) {   
+   if (app->doadjoint>=1) {   
       // get the state at N-(n+1)
       int FWDid= app->ntime - (index +1);
       braid_BaseVector ubase;
@@ -381,24 +381,27 @@ int main (int argc, char *argv[])
    int      rank, ntime, ts, iter, maxiter, nreq, arg_index;
    double  *design; 
    double  *gradient; 
-   double   objective, gamma, stepsize, mygnorm, gnorm, gtol, rnorm, rnorm_adj;
+   double   objective, gamma, stepsize, mygnorm, gnorm;
+   double   gtol;
+   double   rnorm, rnorm_adj;
+
    int      max_levels, cfactor, access_level, print_level, braid_maxiter;
    double   braid_tol, braid_adjtol;
    double   dt, h_inv;
 
    /* Define time domain */
-   ntime  = 10;              /* Total number of time-steps */
+   ntime  = 20;              /* Total number of time-steps */
    tstart = 0.0;             /* Beginning of time domain */
    tstop  = 1.0;             /* End of time domain*/
 
    /* Define some optimization parameters */
-   gamma    = 0.00;         /* Relaxation parameter in the objective function */
+   gamma    = 0.005;         /* Relaxation parameter in the objective function */
    stepsize = 5.0;            /* Step size for design updates */
    maxiter  = 1;           /* Maximum number of optimization iterations */
    gtol     = 1e-6;          /* Stopping criterion on the gradient norm */
 
    /* Define some Braid parameters */
-   max_levels     = 2;
+   max_levels     = 100;
    braid_maxiter  = 10;
    cfactor        = 2;
    braid_tol      = 1.0e-6;
@@ -422,7 +425,6 @@ int main (int argc, char *argv[])
          printf("  -gamma <gamma>          : Relaxation parameter in the objective function \n");
          printf("  -stepsize <stepsize>    : Step size for design updates \n");
          printf("  -mi <maxiter>           : Maximum number of optimization iterations \n");
-         printf("  -gtol <gtol>            : Stopping criterion on the gradient norm \n");
          printf("  -ml <max_levels>        : Max number of braid levels \n");
          printf("  -bmi <braid_maxiter>    : Braid max_iter \n");
          printf("  -cf <cfactor>           : Coarsening factor \n");
@@ -451,11 +453,6 @@ int main (int argc, char *argv[])
       {
          arg_index++;
          maxiter = atoi(argv[arg_index++]);
-      }
-      else if ( strcmp(argv[arg_index], "-gtol") == 0 )
-      {
-         arg_index++;
-         gtol = atof(argv[arg_index++]);
       }
       else if ( strcmp(argv[arg_index], "-ml") == 0 )
       {
@@ -499,8 +496,6 @@ int main (int argc, char *argv[])
       }
    }
    
-   tstop = 1.0*ntime;
-
    /* Initialize optimization */
    // eval J at t=0 AND t=ntime!
    design   = (double*) malloc( (ntime+1)*sizeof(double) );    /* design vector (control c) */
@@ -550,15 +545,17 @@ int main (int argc, char *argv[])
    /* Prepare optimization output */
    if (rank == 0)
    {
-      printf("\nOptimization:         || r ||        || r_adj ||        Objective           || Gradient ||\n");
+      printf("\nOptimization:         || r ||        Objective           || Gradient ||\n");
    }
 
-   // run once, so that the grid for all points is allocated.
-   app->doadjoint = -1;
+   // Set up all grid points. Here, Running braid without adjoint once. TODO. 
+   printf("Initial braid run to set up the grid");
+   app->doadjoint = 0;
    app->objective = 0.0;
    braid_Drive(core);
-   app->doadjoint = 0;
+   app->doadjoint = 1;
    my_ResetGradient(app);
+   printf("\n\n -- Optim -- \n\n");
 
    /* Optimization iteration */
    for (iter = 0; iter < maxiter; iter++)
@@ -581,48 +578,51 @@ int main (int argc, char *argv[])
          uBWD = ubaseBWD->userVector;
       }
       double designi = app->design[FWDid-1];
-      // printf("WELLLLL %d %f \n\n", FWDid-1, designi);
-      // printf("u=%f\n", uFWD->values[0]);
-      // Update adjoint and design
+      // Set adjoint terminal condition
       double dt_fine = app->Tfinal / app->ntime;
       app->gradient[FWDid-1] += evalObjectiveT_diff(uBWD->valuesbar, uFWD->values,designi, app->gamma, dt_fine);
-      printf("Adjoint initial: uBWD=(%f,%f)\n", uBWD->valuesbar[0], uBWD->valuesbar[1]);
+      // printf("Adjoint initial condition: uBWD=(%f,%f)\n", uBWD->valuesbar[0], uBWD->valuesbar[1]);
       // }
 
       /* Parallel-in-time simulation and gradient computation */
+      app->doadjoint=1;
       braid_Drive(core);
-      printf("Objective %f\n", app->objective);
+      // printf("Objective %f\n", app->objective);
+      mygnorm = compute_sqnorm(app->gradient, ntime+1);
 
       /* Get objective function value */
       // nreq = -1;
       // braid_GetObjective(core, &objective);
 
+
       /* Get the state and adjoint residual norms */
+      nreq = -1;
       braid_GetRNorms(core, &nreq, &rnorm);
       // braid_GetRNormAdjoint(core, &rnorm_adj);
 
+   
       /* Compute the norm of the gradient */
-      mygnorm = compute_sqnorm(app->gradient, ntime+1);
       MPI_Allreduce(&mygnorm, &gnorm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
       gnorm = sqrt(gnorm);
 
-      // /* Output */
-      // if (rank == 0)
-      // {
-      //    printf("Optimization: %3d  %1.8e  %1.8e  %1.14e  %1.14e\n", iter, rnorm, rnorm_adj, objective, gnorm);
-      // }
+      /* Output */
+      if (rank == 0)
+      {
+         printf("Optimization: %3d  %1.8e  %1.14e  %1.14e\n", iter, rnorm, app->objective, gnorm);
+      }
 
-      // /* Check optimization convergence */
-      // if (gnorm < gtol)
-      // {
-      //    break;
-      // }
+      /* Check optimization convergence */
+      if (gnorm < gtol)
+      {
+         printf("Success! \n");
+         break;
+      }
 
-      // /* Preconditioned design update */
-      // for(ts = 0; ts < ntime; ts++) 
-      // {
-      //    app->design[ts] -= stepsize * h_inv * app->gradient[ts];
-      // }
+      /* Preconditioned design update */
+      for(ts = 0; ts < ntime+1; ts++) 
+      {
+         app->design[ts] -= stepsize * h_inv * app->gradient[ts];
+      }
 
    }
 
