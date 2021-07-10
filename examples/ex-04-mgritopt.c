@@ -63,9 +63,12 @@
 typedef struct _braid_App_struct
 {
    int     myid;        /* Rank of the processor */
-   double *design;      /* Holds time-dependent design (i.e. control) vector */
-   double *gradient;    /* Holds the gradient vector */
+   double **design;      /* Grid hierarchy for time-dependent design (i.e. control) vector */
+   double **tau;        /* Grid hierarchy for tau-correction term  */
+   double **gradient;    /* Grid hierarchy for the gradient vector */
    double  gamma;       /* Relaxation parameter for objective function */
+   int    *ndesign;
+   double *stepsize;
    int     ntime;       /* Total number of time-steps */
    double Tfinal;
    double objective; 
@@ -99,26 +102,35 @@ my_Step(braid_App        app,
    double design;
    double deltaT;
 
+   int level;
+   braid_StepStatusGetLevel(status, &level);
+   // printf("Step on level %d\n", level);
+
    /* Get the time-step size */
    braid_StepStatusGetTstartTstop(status, &tstart, &tstop);
    deltaT = tstop - tstart;
 
    /* Get the current design at tstart from the app */
-   braid_StepStatusGetTIndex(status, &index);
-   design = app->design[index];
+   braid_StepStatusGetTIndex(status, &index);  // this index is grid dependent!!
+
+   int cfactor;  
+   _braid_GetCFactor(app->core, 0, &cfactor);
+   int designID_fwd = index ;
+   design = app->design[level][designID_fwd];
 
    /* Take one step forward */
-   // printf("Step %f->%f u0=(%f, %f)", tstart, tstop, u->values[0], u->values[1]);
+   // printf("Step(l=%d): %f->%f u0=(%f, %f)", level, tstart, tstop, u->values[0], u->values[1]);
+   printf("Step(l=%d): %f->%f using design[%d][%d], FWDid=%d\n", level, tstart, tstop, level, designID_fwd, app->ndesign[level] - (index+1));
    take_step(u->values, design, deltaT);
    // printf(", u1=(%f,%f)\n", u->values[0], u->values[1]);
 
    /* Take a step backwards */
    if (app->doadjoint>=1) {   
       // get the state at N-(n+1)
-      int FWDid= app->ntime - (index +1);
+      int FWDid= app->ndesign[level] - (index +1);
       braid_BaseVector ubase;
       braid_Vector uFWD=NULL;
-      _braid_UGetVectorRef(app->core, 0, FWDid, &ubase);
+      _braid_UGetVectorRef(app->core, level, FWDid, &ubase); 
       if (ubase != NULL) {
          uFWD = ubase->userVector;
       }
@@ -127,9 +139,10 @@ my_Step(braid_App        app,
       double dPhidp = take_step_diff(u->valuesbar, deltaT);
       double dt_fine = app->Tfinal/ app->ntime;
       // assert(dt_fine == deltaT);
-      double dJdp = evalObjectiveT_diff(u->valuesbar, uFWD->values, app->design[FWDid], app->gamma, dt_fine);
+      double dJdp = evalObjectiveT_diff(u->valuesbar, uFWD->values, app->design[level][FWDid], app->gamma, dt_fine);
       // printf("ubar_out=(%f,%f), dPhi[%d]=%1.8e dJ[%d]=%1.8e \n", u->valuesbar[0], u->valuesbar[1], FWDid, dPhidp, FWDid, dJdp);
-      app->gradient[FWDid] = dPhidp + dJdp;
+      app->gradient[level][FWDid] = dPhidp + dJdp;
+      // printf("Updating gradient[%d][%d]\n", level, FWDid);
    }
 
    /* no refinement */
@@ -277,7 +290,7 @@ my_Access(braid_App          app,
       braid_AccessStatusGetTIndex(astatus, &index);
       braid_AccessStatusGetT(astatus, &time);
       // if (index < app->ntime) {
-         double objT = evalObjectiveT(u->values, app->design[index], deltaT, app->gamma);
+         double objT = evalObjectiveT(u->values, app->design[0][index], deltaT, app->gamma);
          // printf("%d, %f, u->values[0]=%f\n", index, time, (u->values)[0]);
          // printf("%d, %f, u->valuesbar[0]=%f\n", index, time, (u->valuesbar)[0]);
          // printf("%d, %f, u->values[0]=%f, objT=%f\n", index, time, (u->values)[0], objT);
@@ -360,12 +373,53 @@ my_ResetGradient(braid_App app)
 
    for(ts = 0; ts < app->ntime+1; ts++) 
    {
-      app->gradient[ts] = 0.0;
+      app->gradient[0][ts] = 0.0;
    }
 
    return 0;
 }
 
+
+
+int my_Sync(braid_App        app,
+            braid_SyncStatus status)
+{
+   braid_Int calling_fcn;
+   braid_SyncStatusGetCallingFunction(status, &calling_fcn);
+   int l;
+   braid_SyncStatusGetLevel(status, &l);
+
+   // Preoptimize
+   if(calling_fcn == braid_ASCaller_Drive_FCRelax)
+   {
+      printf("Sync: Pre-optimize on level %d, stepsize %f \n", l, app->stepsize[l]);
+      for (int i=0; i<app->ndesign[l]; i++){
+         app->design[l][i] -= app->stepsize[l] * ( app->gradient[l][i] - app->tau[l][i]);
+      }
+   } else 
+   // Restrict to coarser level
+   if (calling_fcn == braid_ASCaller_FRestrictDesign) {
+      printf("Sync: Restrict from level %d\n", l);
+      for (int ts=0; ts<app->ndesign[l+1]; ts++){
+         // assumes cfactor==2 here. x_c^i = x_f^i + x_f^{i+1}
+         app->design[l+1][ts] = app->design[l][2*ts] + app->design[l][2*ts+1]; // restricted design 
+         double rgrad = app->gradient[l][2*ts] + app->gradient[l][2*ts + 1]; // restricted gradient
+         app->tau[l+1][ts] = app->tau[l][2*ts] + app->tau[l][2*ts+1] - rgrad;  // restricted tau - restricted grad
+
+      } 
+   } else 
+   // Add coarse-grid gradient to tau-correction term
+   if (calling_fcn == braid_ASCaller_FRestrictUpdate) {
+      printf("Sync: Add coarse-grid gradient to tau correction %d\n", l);
+      for (int ts=0; ts<app->ndesign[l+1]; ts++){
+         // hopefully, gradient[l+1] had been set within XBraid's FRestrict at this point...
+         app->tau[l+1][ts] += app->gradient[l+1][ts];
+         printf("tau[%d]=%f, using gradient[%d][%d]\n", ts, app->tau[l+1][ts], l+1, ts);
+      }
+   }
+
+   return 0;
+}
 
 
 /*--------------------------------------------------------------------------
@@ -379,9 +433,7 @@ int main (int argc, char *argv[])
          
    double   tstart, tstop; 
    int      rank, ntime, ts, iter, maxiter, nreq, arg_index;
-   double  *design; 
-   double  *gradient; 
-   double   objective, gamma, stepsize, mygnorm, gnorm;
+   double   objective, gamma, mygnorm, gnorm;
    double   gtol;
    double   rnorm, rnorm_adj;
 
@@ -395,8 +447,7 @@ int main (int argc, char *argv[])
    tstop  = 1.0;             /* End of time domain*/
 
    /* Define some optimization parameters */
-   gamma    = 0.005;         /* Relaxation parameter in the objective function */
-   stepsize = 5.0;            /* Step size for design updates */
+   gamma    = 0.0;         /* Relaxation parameter in the objective function */
    maxiter  = 1;           /* Maximum number of optimization iterations */
    gtol     = 1e-6;          /* Stopping criterion on the gradient norm */
 
@@ -423,7 +474,6 @@ int main (int argc, char *argv[])
          printf("        d/dt u_2(t) = -u_2(t) + c(t) \n\n");
          printf("  -ntime <ntime>          : set num points in time\n");
          printf("  -gamma <gamma>          : Relaxation parameter in the objective function \n");
-         printf("  -stepsize <stepsize>    : Step size for design updates \n");
          printf("  -mi <maxiter>           : Maximum number of optimization iterations \n");
          printf("  -ml <max_levels>        : Max number of braid levels \n");
          printf("  -bmi <braid_maxiter>    : Braid max_iter \n");
@@ -443,11 +493,6 @@ int main (int argc, char *argv[])
       {
          arg_index++;
          gamma = atof(argv[arg_index++]);
-      }
-      else if ( strcmp(argv[arg_index], "-stepsize") == 0 )
-      {
-         arg_index++;
-         stepsize = atof(argv[arg_index++]);
       }
       else if ( strcmp(argv[arg_index], "-mi") == 0 )
       {
@@ -495,16 +540,45 @@ int main (int argc, char *argv[])
          return (0);
       }
    }
+
+   assert(cfactor==2); // check my_sync for restriction ! And my_Step when accessing FWDid. 
+
    
    /* Initialize optimization */
-   // eval J at t=0 AND t=ntime!
-   design   = (double*) malloc( (ntime+1)*sizeof(double) );    /* design vector (control c) */
-   gradient = (double*) malloc( (ntime+1)*sizeof(double) );    /* gradient vector */
-   for (ts = 0; ts < ntime+1; ts++)
-   {
-      design[ts]   = 0.1;
-      gradient[ts] = 0.;
+   double  *design[max_levels]; 
+   double  *tau[max_levels]; 
+   double  *gradient[max_levels]; 
+   int ndesign[max_levels];
+   ndesign[0] = ntime;   // number of design varialbes on finest grid (l=0)
+   assert(ndesign[0] % cfactor ==0);
+   for (int l=0; l<max_levels; l++) {
+      printf("Init design on level %d, ndesign %d\n", l, ndesign[l]);
+      design[l]   = (double*) malloc( ndesign[l]*sizeof(double) );    /* design vector */
+      tau[l]      = (double*) malloc( ndesign[l]*sizeof(double) );    /* tau coorection (v_h) */
+      gradient[l] = (double*) malloc( ndesign[l]*sizeof(double) );    /* gradient vector */
+
+      for (ts = 0; ts < ndesign[l]; ts++)
+      {
+         design[l][ts]   = 0.1;
+         gradient[l][ts] = 0.;
+         tau[l][ts] = 0.;
+      }
+
+      if ( ndesign[l] % cfactor == 0 ){
+         ndesign[l+1] = ndesign[l]/cfactor;
+      } else { // stop refining
+         max_levels = l+1;
+      }
    }
+   printf("maxlevels %d\n", max_levels);
+   assert(max_levels>0);
+
+   // Fixed step size for design updates on all levels. TODO. 
+   double stepsize[max_levels];
+   for (int l=0; l<max_levels; l++){
+     stepsize[l] = 0.001;
+   }
+
    /* Inverse of reduced Hessian approximation */
    dt    = (tstop - tstart) / ntime;
    h_inv = 1. / ( 2 * dt * (1. + gamma) );
@@ -522,6 +596,9 @@ int main (int argc, char *argv[])
    app->gamma    = gamma;
    app->objective = 0.0;
    app->Tfinal = tstop;
+   app->ndesign = ndesign;
+   app->stepsize = stepsize;
+   app->tau = tau;
 
    /* Initialize XBraid */
    braid_Init(MPI_COMM_WORLD, MPI_COMM_WORLD, tstart, tstop, ntime, app, my_Step, my_Init, my_Clone, my_Free, my_Sum, my_SpatialNorm, my_Access, my_BufSize, my_BufPack, my_BufUnpack, &core);
@@ -541,6 +618,7 @@ int main (int argc, char *argv[])
    braid_SetSkip(core, 0); // turn off skip of first down cycle.
    braid_SetStorage(core, 0);
    braid_SetFinalFCRelax(core);
+   braid_SetSync(core, my_Sync);
 
    /* Prepare optimization output */
    if (rank == 0)
@@ -570,17 +648,17 @@ int main (int argc, char *argv[])
       braid_Vector uFWD=NULL;
       braid_Vector uBWD=NULL;
       _braid_UGetVectorRef(app->core, 0, FWDid, &ubaseFWD);      // last step
-      _braid_UGetVectorRef(app->core, 0, 0, &ubaseBWD); // last first step
+      _braid_UGetVectorRef(app->core, 0, 0, &ubaseBWD);          // first step
       if (ubaseFWD != NULL) {
          uFWD = ubaseFWD->userVector;
       }
       if (ubaseBWD != NULL) {
          uBWD = ubaseBWD->userVector;
       }
-      double designi = app->design[FWDid-1];
+      double designi = app->design[0][FWDid-1];
       // Set adjoint terminal condition
       double dt_fine = app->Tfinal / app->ntime;
-      app->gradient[FWDid-1] += evalObjectiveT_diff(uBWD->valuesbar, uFWD->values,designi, app->gamma, dt_fine);
+      app->gradient[0][FWDid-1] += evalObjectiveT_diff(uBWD->valuesbar, uFWD->values,designi, app->gamma, dt_fine);
       // printf("Adjoint initial condition: uBWD=(%f,%f)\n", uBWD->valuesbar[0], uBWD->valuesbar[1]);
       // }
 
@@ -588,7 +666,7 @@ int main (int argc, char *argv[])
       app->doadjoint=1;
       braid_Drive(core);
       // printf("Objective %f\n", app->objective);
-      mygnorm = compute_sqnorm(app->gradient, ntime+1);
+      mygnorm = compute_sqnorm(app->gradient[0], ntime+1);
 
       /* Get objective function value */
       // nreq = -1;
@@ -618,11 +696,11 @@ int main (int argc, char *argv[])
          break;
       }
 
-      /* Preconditioned design update */
-      for(ts = 0; ts < ntime+1; ts++) 
-      {
-         app->design[ts] -= stepsize * h_inv * app->gradient[ts];
-      }
+      // /* Preconditioned design update */
+      // for(ts = 0; ts < ntime+1; ts++) 
+      // {
+      //    app->design[0][ts] -= stepsize * h_inv * app->gradient[0][ts];
+      // }
 
    }
 
@@ -676,8 +754,11 @@ int main (int argc, char *argv[])
    // }
 
    /* Clean up */
-   free(design);
-   free(gradient);
+   for (int l=0; l<max_levels; l++){
+      free(design[l]);
+      free(tau[l]);
+      free(gradient[l]);
+   }
    free(app);
    
    braid_Destroy(core);

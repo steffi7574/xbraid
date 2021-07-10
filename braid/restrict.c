@@ -71,6 +71,7 @@ _braid_FRestrict(braid_Core   core,
    braid_App             app          = _braid_CoreElt(core, app);
    _braid_Grid         **grids        = _braid_CoreElt(core, grids);
    braid_AccessStatus    astatus      = (braid_AccessStatus)core;
+   braid_SyncStatus      sstatus      = (braid_SyncStatus)core;
    braid_ObjectiveStatus ostatus      = (braid_ObjectiveStatus)core;
    braid_Int             iter         = _braid_CoreElt(core, niter);
    braid_Int             print_level  = _braid_CoreElt(core, print_level);
@@ -214,6 +215,10 @@ _braid_FRestrict(braid_Core   core,
       }
    }
    _braid_UCommWait(core, level);
+
+   /* Restrict design */
+   _braid_SyncStatusInit(iter, level, _braid_CoreElt(core, nrefine), _braid_CoreElt(core, gupper), -1, braid_ASCaller_FRestrictDesign, sstatus);
+   _braid_Sync(core, sstatus);
   
    /* Now apply coarse residual to update fa values */
 
@@ -326,6 +331,11 @@ _braid_FRestrict(braid_Core   core,
       /* Store new rnorm */
       _braid_SetRNorm(core, -1, grnorm);
    }
+
+
+   _braid_SyncStatusInit(iter, level, _braid_CoreElt(core, nrefine), _braid_CoreElt(core, gupper), -1, braid_ASCaller_FRestrictUpdate, sstatus);
+   _braid_Sync(core, sstatus);
+
    
    /* If debug printing, print out tnorm_a for this interval. This
     * should show the serial propagation of the exact solution */

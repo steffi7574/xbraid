@@ -696,6 +696,12 @@ ACCESSOR_HEADER_GET1(Objective, Tol,           Real)
 #define braid_ASCaller_FCRelax 6
 /** When CallingFunction equals 7, Braid just finished initialization */
 #define braid_ASCaller_Drive_AfterInit 7
+/** When CallingFunction equals 8, Braid is in drive(), just after an FCrelax during down-cycle */
+#define braid_ASCaller_Drive_FCRelax 8
+/** When CallingFunction equals 9, Braid is in FRestrict(), after restriction of y */
+#define braid_ASCaller_FRestrictDesign 9
+/** When CallingFunction equals 10, Braid is at the end of FRestrice() */
+#define braid_ASCaller_FRestrictUpdate 10
 
 /** @}*/
 

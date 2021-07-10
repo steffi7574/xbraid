@@ -507,7 +507,9 @@ _braid_Drive(braid_Core  core,
          /* CF-relaxation */
          // printf("Down-cycle: Level %d, Enter FCRelax\n", level);
          _braid_FCRelax(core, level);
-         // printf("Done\n");
+         _braid_SyncStatusInit(iter, level, _braid_CoreElt(core, nrefine), _braid_CoreElt(core, gupper), done, braid_ASCaller_Drive_FCRelax, sstatus);
+         _braid_Sync(core, sstatus);
+         printf("Done\n");
 
          /* F-relax then restrict (note that FRestrict computes a new rnorm) */
          /* if adjoint: This computes the local objective function at each step on finest grid. */
